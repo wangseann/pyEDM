@@ -47,11 +47,12 @@ def ComputeError( obs, pred, digits = 6 ):
         print( msg )
         return { 'rho' : nan, 'MAE' : nan, 'RMSE' : nan }
 
-    rho  = round( corrcoef( obs, pred )[0,1], digits )
-    err  = obs - pred
-    MAE  = round( max( err ), digits )
-    CAE  = round( absolute( err ).sum(), digits )
-    RMSE = round( sqrt( mean( err**2 ) ), digits )
+    rho    = round( corrcoef( obs, pred )[0,1], digits )
+    err    = obs - pred
+    absErr = absolute( err )
+    MAE    = round( absErr.max(), digits )
+    CAE    = round( absErr.sum(), digits )
+    RMSE   = round( sqrt( mean( err**2 ) ), digits )
 
     D = { 'rho' : rho, 'MAE' : MAE, 'CAE' : CAE, 'RMSE' : RMSE }
 
