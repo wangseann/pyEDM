@@ -37,6 +37,20 @@ def test_simplex_matches_hand_calculated_distance_weights():
     assert result["Observations"].iloc[0] == 123.
 
 
+@pytest.mark.parametrize("radius, neighbors, prediction", [
+    (0, [3, 5], 54.),
+    (1, [2, 6], 55.),
+])
+def test_simplex_ties_use_temporal_proximity_then_earlier_row(radius, neighbors, prediction):
+    # For prediction row 4, all x=1 rows are equally distant from x=0.
+    data = pd.DataFrame({"Time": np.arange(1, 9), "x": [2., 1., 1., 1., 0., 1., 1., 3.],
+                         "y": [11., 23., 37., 41., 59., 67., 73., 89.]})
+    obj = EDM.Simplex(data, columns="x", target="y", lib=[1, 8], pred=[5, 6],
+                      E=1, Tp=0, knn=2, exclusionRadius=radius, kdWorkers=1, returnObject=True)
+    assert obj.knn_neighbors[0].tolist() == neighbors
+    assert obj.projection[0] == pytest.approx(prediction, rel=0, abs=1e-12)
+
+
 @pytest.mark.parametrize("theta", [0., 2.])
 def test_smap_recovers_known_affine_relationship(theta):
     x = np.linspace(-2, 3, 40)

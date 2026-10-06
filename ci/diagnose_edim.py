@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 import pyEDM
 
+from ci.edim_reference import CURVES, SUPPORTED_VERSION
+
 
 CASES = {
     1: ("Lorenz5D", dict(columns="V1", target="V1", lib=[1, 1000], pred=[1, 1000], Tp=5, tau=-5)),
@@ -47,6 +49,7 @@ def exhaustive_projection(obj):
 
 
 def diagnose(root):
+    assert pyEDM.__version__ == SUPPORTED_VERSION, "Review EDim references for the new pyEDM version"
     spec = importlib.util.spec_from_file_location(
         "historical_neighbors", root / "external/pyedm-before-ties/src/pyEDM/Neighbors.py")
     historical = importlib.util.module_from_spec(spec)
@@ -71,6 +74,7 @@ def diagnose(root):
             assert finite.sum() > 5
             reference_rho = float(np.round(np.corrcoef(observations[finite], predictions[finite])[0, 1], 6))
             assert current == reference_rho, (case, dimension, current, reference_rho)
+            assert reference_rho == CURVES[case][dimension - 1], (case, dimension, reference_rho)
             # Isolate the tie-policy change; retain current exclusion safeguards.
             obj.tieBreak = False
             obj.FindNeighbors()
@@ -84,6 +88,7 @@ def diagnose(root):
             obj.Project()
             obj.FormatProjection()
             historical_rho = pyEDM.ComputeError(obj.Projection.Observations, obj.Projection.Predictions)["rho"]
+            assert historical_rho == golden.rho.iloc[dimension - 1], (case, dimension, historical_rho)
             record = dict(case=case, E=dimension, golden=float(golden.rho.iloc[dimension - 1]),
                           current=float(current), reference_rho=reference_rho,
                           without_tie_policy=float(legacy),

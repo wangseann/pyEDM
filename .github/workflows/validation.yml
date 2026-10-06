@@ -58,7 +58,7 @@ jobs:
           path: external/pyedm-before-ties
           persist-credentials: false
       - name: Diagnose changed EDim reference curves
-        run: python ci/diagnose_edim.py
+        run: python -m ci.diagnose_edim
       - name: Run all 31 independent pyEDM reference tests against the fork
         working-directory: external/EDM_MDE_validation
         run: |
