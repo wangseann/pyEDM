@@ -53,7 +53,8 @@ jobs:
       - name: Run all 31 independent pyEDM reference tests against the fork
         working-directory: external/EDM_MDE_validation
         run: |
-          python -m pytest -q test_Simplex.py test_SMap.py test_CCM.py test_EDim.py \
+          PYTHONPATH="${{ github.workspace }}" python -m pytest -p ci.external_fixtures \
+            -q test_Simplex.py test_SMap.py test_CCM.py test_EDim.py \
             --timeout=1200 --durations=31 \
             --junitxml="${{ github.workspace }}/test-results/external.xml"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

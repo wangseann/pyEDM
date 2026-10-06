@@ -29,9 +29,9 @@ def test_embedding_rejects_invalid_requests(kwargs):
 def test_simplex_matches_hand_calculated_distance_weights():
     # Neighbors of 2.25 are 2 and 3, with distances .25 and .75.
     # Targets 7 and 9 receive weights exp(-1) and exp(-3).
-    data = pd.DataFrame({"Time": [1, 2, 3, 4, 5],
-                         "x": [0., 1., 2., 3., 2.25], "y": [3., 5., 7., 9., 123.]})
-    result = EDM.Simplex(data, columns="x", target="y", lib=[1, 4], pred=[5, 5],
+    data = pd.DataFrame({"Time": [1, 2, 3, 4, 5, 6],
+                         "x": [0., 1., 2., 3., 2.25, 2.75], "y": [3., 5., 7., 9., 123., 456.]})
+    result = EDM.Simplex(data, columns="x", target="y", lib=[1, 4], pred=[5, 6],
                          E=1, Tp=0, knn=2, kdWorkers=1)
     assert result["Predictions"].iloc[0] == pytest.approx(7.238405844044235, rel=0, abs=1e-12)
     assert result["Observations"].iloc[0] == 123.
@@ -59,10 +59,13 @@ def test_no_time_preserves_predictions_and_first_data_column(method):
     before = values.copy(deep=True)
     options = dict(columns="x", target="y", lib=[1, 50], pred=[55, 75], E=2, Tp=1, kdWorkers=1)
     function = getattr(EDM, method)
+    if method == "SMap":
+        options["theta"] = 2.
     with_time = function(data, **options)
     without_time = function(values, noTime=True, **options)
     if method == "SMap":
         with_time, without_time = with_time["predictions"], without_time["predictions"]
+    assert np.isfinite(with_time["Predictions"]).sum() == 21
     assert_frame_equal(with_time, without_time, check_dtype=False, rtol=0, atol=1e-12)
     assert_frame_equal(values, before)
 

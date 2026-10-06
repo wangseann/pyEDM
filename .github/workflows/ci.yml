@@ -50,12 +50,16 @@ jobs:
           python -m twine check dist/*
           python -m pip uninstall --yes pyEDM
           python -m pip install --force-reinstall dist/*.whl
+          python -m pip freeze > test-results/wheel-dependencies.txt
       - name: Exercise the installed wheel outside the source tree
         working-directory: ${{ runner.temp }}
         run: |
           python -I - <<'PY'
+          from importlib.metadata import version
+          import json
           import os
           from pathlib import Path
+          import platform
           import numpy as np
           import pyEDM
           source = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
@@ -65,6 +69,12 @@ jobs:
           result = pyEDM.Simplex(data, columns="x", target="y", lib=[1, 100],
                                  pred=[101, 150], E=2, kdWorkers=1)
           assert np.isfinite(result["Predictions"]).sum() >= 45
+          report = {"python": platform.python_version(), "platform": platform.platform(),
+                    "import_origin": str(Path(pyEDM.__file__).resolve()),
+                    "github_sha": os.environ["GITHUB_SHA"],
+                    "versions": {name: version(name) for name in
+                                 ("pyEDM", "numpy", "scipy", "pandas", "scikit-learn")}}
+          (source / "test-results/wheel-environment.json").write_text(json.dumps(report, indent=2) + "\n")
           print("Installed wheel:", pyEDM.__version__, pyEDM.__file__)
           PY
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
