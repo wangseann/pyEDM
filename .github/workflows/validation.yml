@@ -50,6 +50,8 @@ jobs:
           ref: bae270e568dd52830f57ab661380e700097aa58d
           path: external/EDM_MDE_validation
           persist-credentials: false
+      - name: Diagnose changed EDim reference curves
+        run: python ci/diagnose_edim.py
       - name: Run all 31 independent pyEDM reference tests against the fork
         working-directory: external/EDM_MDE_validation
         run: |
