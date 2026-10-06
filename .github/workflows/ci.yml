@@ -1,0 +1,213 @@
+name: CI
+
+on:
+  push:
+    branches: ["master"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MPLBACKEND: Agg
+  MPLCONFIGDIR: ${{ github.workspace }}/.ci/matplotlib
+  OMP_NUM_THREADS: "1"
+  OPENBLAS_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+  NUMEXPR_NUM_THREADS: "1"
+  PYTHONHASHSEED: "0"
+  PYTHONUNBUFFERED: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+
+jobs:
+  package:
+    name: Build and installed-wheel smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install the fork and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --editable ".[test]"
+          python ci/record_environment.py
+          python -m pip freeze > test-results/dependencies.txt
+      - name: Build and validate distributions
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check dist/*
+          python -m pip uninstall --yes pyEDM
+          python -m pip install --force-reinstall dist/*.whl
+      - name: Exercise the installed wheel outside the source tree
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -I - <<'PY'
+          import os
+          from pathlib import Path
+          import numpy as np
+          import pyEDM
+          source = Path(os.environ["GITHUB_WORKSPACE"]).resolve()
+          assert not Path(pyEDM.__file__).resolve().is_relative_to(source)
+          assert {"circle", "Lorenz5D", "TentMap"} <= set(pyEDM.sampleData)
+          data = pyEDM.sampleData["circle"]
+          result = pyEDM.Simplex(data, columns="x", target="y", lib=[1, 100],
+                                 pred=[101, 150], E=2, kdWorkers=1)
+          assert np.isfinite(result["Predictions"]).sum() >= 45
+          print("Installed wheel:", pyEDM.__version__, pyEDM.__file__)
+          PY
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: distributions
+          path: dist/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: package-provenance
+          path: test-results/*
+          if-no-files-found: error
+
+  core:
+    name: Upstream core tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "${{ matrix.python }}"
+          cache: pip
+      - name: Install the fork and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --editable ".[test]"
+          python ci/record_environment.py
+          python -m pip freeze > test-results/dependencies.txt
+      - name: Run upstream core tests
+        working-directory: src/pyEDM/tests
+        run: |
+          python -m pytest -q . --timeout=1200 --durations=15 \
+            --junitxml="${{ github.workspace }}/test-results/core.xml"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: core-${{ matrix.python }}
+          path: test-results/*
+          if-no-files-found: error
+
+  contracts:
+    name: Custom numerical and execution contracts (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "${{ matrix.python }}"
+          cache: pip
+      - name: Install the fork and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --editable ".[test]"
+          python ci/record_environment.py
+          python -m pip freeze > test-results/dependencies.txt
+      - name: Run custom numerical and execution contracts
+        working-directory: .
+        run: |
+          python -m pytest -q tests --timeout=1200 --durations=15 \
+            --junitxml="${{ github.workspace }}/test-results/contracts.xml"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: contracts-${{ matrix.python }}
+          path: test-results/*
+          if-no-files-found: error
+
+  apps:
+    name: Upstream application tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install the fork and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --editable ".[test]"
+          python ci/record_environment.py
+          python -m pip freeze > test-results/dependencies.txt
+      - name: Run application tests
+        working-directory: src/pyEDM/apps/tests
+        run: |
+          python -m pytest -q . --ignore=test_CCM_Matrix.py --timeout=1800 --durations=15 \
+            --junitxml="${{ github.workspace }}/test-results/apps.xml"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: apps
+          path: test-results/*
+          if-no-files-found: error
+
+  ccm-matrix:
+    name: Upstream CCM matrix regression ${{ matrix.case }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        case: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install the fork and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --editable ".[test]"
+          python ci/record_environment.py
+          python -m pip freeze > test-results/dependencies.txt
+      - name: Run the complete selected CCM matrix regression
+        working-directory: src/pyEDM/apps/tests
+        run: |
+          python -m pytest -q "test_CCM_Matrix.py::test_CCM_Matrix_${{ matrix.case }}" \
+            --timeout=4500 --durations=1 \
+            --junitxml="${{ github.workspace }}/test-results/ccm-matrix.xml"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: ccm-matrix-${{ matrix.case }}
+          path: test-results/*
+          if-no-files-found: error
