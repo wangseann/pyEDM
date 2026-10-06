@@ -50,6 +50,13 @@ jobs:
           ref: bae270e568dd52830f57ab661380e700097aa58d
           path: external/EDM_MDE_validation
           persist-credentials: false
+      - name: Check out the historical neighbor implementation for comparison
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: SugiharaLab/pyEDM
+          ref: ad80c9de7aa7916f0d9fd4c67b390cfcd0eed874
+          path: external/pyedm-before-ties
+          persist-credentials: false
       - name: Diagnose changed EDim reference curves
         run: python ci/diagnose_edim.py
       - name: Run all 31 independent pyEDM reference tests against the fork

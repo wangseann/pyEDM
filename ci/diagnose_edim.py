@@ -1,5 +1,6 @@
 """Audit changed EDim goldens with an exhaustive neighbor calculation on CI."""
 import json
+import importlib.util
 from pathlib import Path
 
 import numpy as np
@@ -46,6 +47,10 @@ def exhaustive_projection(obj):
 
 
 def diagnose(root):
+    spec = importlib.util.spec_from_file_location(
+        "historical_neighbors", root / "external/pyedm-before-ties/src/pyEDM/Neighbors.py")
+    historical = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(historical)
     records = []
     for case, (dataset, kwargs) in CASES.items():
         golden = pd.read_csv(root / f"external/EDM_MDE_validation/ValidOutput/EDim_{case}_valid.csv")
@@ -72,9 +77,18 @@ def diagnose(root):
             obj.Project()
             obj.FormatProjection()
             legacy = pyEDM.ComputeError(obj.Projection.Observations, obj.Projection.Predictions)["rho"]
+            historical.FindNeighbors(obj)
+            historical_distances = obj.knn_distances
+            excluded = (np.abs(np.asarray(obj.pred_i)[:, None] - obj.knn_neighbors) <= obj.exclusionRadius)
+            leaked_rows = int(np.any(excluded & np.isfinite(historical_distances), axis=1).sum())
+            obj.Project()
+            obj.FormatProjection()
+            historical_rho = pyEDM.ComputeError(obj.Projection.Observations, obj.Projection.Predictions)["rho"]
             record = dict(case=case, E=dimension, golden=float(golden.rho.iloc[dimension - 1]),
                           current=float(current), reference_rho=reference_rho,
                           without_tie_policy=float(legacy),
+                          historical_neighbors_rho=float(historical_rho),
+                          historical_excluded_neighbor_rows=leaked_rows,
                           boundary_tie_rows=ties, deficient_rows=deficient,
                           exhaustive_max_error=max_error)
             records.append(record)
