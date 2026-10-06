@@ -53,9 +53,19 @@ def diagnose(root):
             obj = pyEDM.Simplex(pyEDM.sampleData[dataset].copy(deep=True), E=dimension,
                                 kdWorkers=1, returnObject=True, **kwargs)
             reference, ties, deficient = exhaustive_projection(obj)
-            np.testing.assert_allclose(obj.projection, reference, rtol=0, atol=1e-12, equal_nan=True)
+            # dot() and the production multiply/sum accumulate in different orders.
+            np.testing.assert_allclose(obj.projection, reference,
+                                       rtol=32 * np.finfo(float).eps, atol=1e-12, equal_nan=True)
             max_error = float(np.nanmax(np.abs(reference - obj.projection)))
             current = pyEDM.ComputeError(obj.Projection.Observations, obj.Projection.Predictions)["rho"]
+            observation_rows = np.asarray(obj.pred_i) + obj.Tp
+            paired = (observation_rows >= 0) & (observation_rows < len(obj.targetVec))
+            observations = obj.targetVec[observation_rows[paired], 0]
+            predictions = reference[paired]
+            finite = np.isfinite(observations) & np.isfinite(predictions)
+            assert finite.sum() > 5
+            reference_rho = float(np.round(np.corrcoef(observations[finite], predictions[finite])[0, 1], 6))
+            assert current == reference_rho, (case, dimension, current, reference_rho)
             # Isolate the tie-policy change; retain current exclusion safeguards.
             obj.tieBreak = False
             obj.FindNeighbors()
@@ -63,7 +73,8 @@ def diagnose(root):
             obj.FormatProjection()
             legacy = pyEDM.ComputeError(obj.Projection.Observations, obj.Projection.Predictions)["rho"]
             record = dict(case=case, E=dimension, golden=float(golden.rho.iloc[dimension - 1]),
-                          current=float(current), without_tie_policy=float(legacy),
+                          current=float(current), reference_rho=reference_rho,
+                          without_tie_policy=float(legacy),
                           boundary_tie_rows=ties, deficient_rows=deficient,
                           exhaustive_max_error=max_error)
             records.append(record)
