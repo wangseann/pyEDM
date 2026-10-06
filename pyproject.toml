@@ -30,6 +30,9 @@ Documentation = "https://sugiharalab.github.io/EDM_Documentation/"
 Repository    = "https://github.com/SugiharaLab/pyEDM"
 Issues        = "https://github.com/SugiharaLab/pyEDM/issues"
 
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-timeout>=2.3", "pyarrow>=14"]
+
 [tool.pdm.version]
 source = "file"
 path   = "src/pyEDM/__init__.py"

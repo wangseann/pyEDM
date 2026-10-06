@@ -1,4 +1,9 @@
 ## Empirical Dynamic Modeling (EDM)
+[![CI](https://github.com/wangseann/pyEDM/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/wangseann/pyEDM/actions/workflows/ci.yml)
+[![Extended validation](https://github.com/wangseann/pyEDM/actions/workflows/validation.yml/badge.svg?branch=master)](https://github.com/wangseann/pyEDM/actions/workflows/validation.yml)
+
+This fork adds [continuous integration and independent numerical tests](TESTING.md).
+
 ---
 This package provides a Python/Pandas DataFrame toolset for [EDM analysis](http://deepeco.ucsd.edu/nonlinear-dynamics-research/edm/ "EDM @ Sugihara Lab").  Introduction and documentation are are avilable [online](https://sugiharalab.github.io/EDM_Documentation/ "EDM Docs"), or in the package [API docs](https://github.com/SugiharaLab/pyEDM/blob/master/doc/pyEDM.pdf "pyEDM API"). A Jupyter notebook interface is available at [jpyEDM](https://github.com/SugiharaLab/jpyEDM#empirical-dynamic-modeling-edm-jupyter-notebook).
 
